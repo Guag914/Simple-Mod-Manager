@@ -19,7 +19,8 @@ Designed to be fast, clean, and easy to use, it provides full control over your 
 1. Install Simple Mod Manager and launch the game  
 2. Press **F8** at any time to open the manager  
 3. Browse your installed mods  
-4. Toggle mods quickly and easily  
+4. Toggle mods quickly and easily
+5. Mod Packs  Devs: Easily allow preference mods to be toggled, while keeping important ones locked 
 
 ---
 
