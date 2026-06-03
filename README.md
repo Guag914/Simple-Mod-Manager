@@ -48,6 +48,7 @@ Managing mods manually can be frustrating. Simple Mod Manager streamlines the pr
 ---
 
 ## Links
+- **Curseforge:** https://www.curseforge.com/minecraft/mc-mods/simple-mod-menu/
 - **Modrinth:** https://modrinth.com/mod/simple-mod-manager
 - **Full Spectrum Realism:** https://modrinth.com/modpack/full-spectrum-realism
 
