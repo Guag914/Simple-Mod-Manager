@@ -1,6 +1,9 @@
 package net.guag.simplemodmanager.screen;
 
+import net.guag.simplemodmanager.SimpleModManager;
 import net.guag.simplemodmanager.util.DrawingUtils;
+import net.guag.simplemodmanager.util.FileUtils;
+import net.guag.simplemodmanager.util.ToggleState;
 import net.guag.simplemodmanager.widgets.CustomButtonWidget;
 import net.guag.simplemodmanager.widgets.CustomTextWidget;
 
@@ -42,16 +45,23 @@ public class ContentManagerScreen extends Screen{
     private final List<Button> modToggleButtons = new ArrayList<>();
     private final List<Button> modResetButtons = new ArrayList<>();
     private final List<Button> modMetadataButtons = new ArrayList<>();
-    private final Map<Button, String> tooltipMap = new HashMap<>();
 
     private final List<Button> resourceMetadataButtons = new ArrayList<>();
-    private final List<Button> shaderMetadataButtons = new ArrayList<>();
+    private final List<Button> resourceResetButtons = new ArrayList<>();
+
     private final List<Button> resourceToggleButtons = new ArrayList<>();
+
+    private final List<Button> shaderMetadataButtons = new ArrayList<>();
+    private final List<Button> shaderResetButtons = new ArrayList<>();
     private final List<Button> shaderToggleButtons = new ArrayList<>();
 
+    private final Map<Button, String> tooltipMap = new HashMap<>();
     private final List<Button> headerButtons = new ArrayList<>();
 
-    private static final ArrayList<String> dependencies = new ArrayList<>();
+    static final ArrayList<String> dependencies = new ArrayList<>();
+
+    public static String whitelist_enabled;
+    public static Set<String> whitelist = new HashSet<>();
 
     public ContentManagerScreen(Minecraft client, List<FileToggle> modToggles, List<FileToggle> resourceToggles, List<FileToggle> shaderToggles) {
         super(Component.literal("Simple Mod Manager"));
@@ -63,6 +73,7 @@ public class ContentManagerScreen extends Screen{
 
     @Override
     protected void init() {
+        dependencies.clear();
         this.modToggleButtons.clear();
         this.modResetButtons.clear();
         this.modMetadataButtons.clear();
@@ -71,9 +82,11 @@ public class ContentManagerScreen extends Screen{
         this.tabButtons.clear();
 
         this.resourceToggleButtons.clear();
+        this.resourceResetButtons.clear();
         this.resourceMetadataButtons.clear();
 
         this.shaderToggleButtons.clear();
+        this.shaderResetButtons.clear();
         this.shaderMetadataButtons.clear();
 
         this.tooltipMap.clear();
@@ -109,6 +122,8 @@ public class ContentManagerScreen extends Screen{
         addWidget(shadersTab);
 
         FileToggle.initializeDefaultDisabledMods();
+        FileToggle.loadWhitelistState();
+        FileToggle.loadLockedStates(modToggles, resourceToggles, shaderToggles);
 
         int index = 0;
 
@@ -119,13 +134,24 @@ public class ContentManagerScreen extends Screen{
             }
         }
 
+        for (FileToggle toggle : modToggles) {
+            if (toggle.getState() == ToggleState.LOCKED_ENABLED || toggle.getState() == ToggleState.LOCKED_DISABLED) {
+                if (!dependencies.contains(toggle.getModId())) dependencies.add(toggle.getModId());
+            }
+        }
+
+        if (whitelist_enabled.equals("true")) {
+            for (FileToggle toggle : modToggles) {
+                String modId = toggle.getModId();
+                // if mod is NOT in the whitelist, treat it as a dependency (lock it)
+                if (!whitelist.contains(modId) && !dependencies.contains(modId)) {
+                    dependencies.add(modId);
+                }
+            }
+        }
+
         //sort putting non-toggleable mods last
-        modToggles.sort((a, b) -> {
-            boolean aDep = dependencies.contains(a.getModId());
-            boolean bDep = dependencies.contains(b.getModId());
-            if (aDep != bDep) return Boolean.compare(aDep, bDep); // dependencies last
-            return Boolean.compare(!a.isEnabled(), !b.isEnabled()); // disabled last within each group
-        });
+        modToggles.sort(Comparator.comparingInt(FileToggle::getSortPriority));
 
         for (FileToggle toggle : modToggles) {
             Button toggleFunc =  Button.builder(Component.literal(toggle.getButtonText().getString()), button -> {
@@ -137,9 +163,7 @@ public class ContentManagerScreen extends Screen{
                 }
             }).bounds(0, 0, 60, btnHeight).build();
 
-            toggleFunc.active = !dependencies.contains(toggle.getModId()); //set toggle state depending on if it's a dependency
-//            System.out.println(toggle.getModId() + (dependencies.contains(toggle.getModId()) ? " IS dependency " : " is NOT dependency"));
-//            System.out.println(dependencies);
+            toggleFunc.active = !dependencies.contains(toggle.getModId());
 
             addWidget(toggleFunc);
             modToggleButtons.add(toggleFunc);
@@ -167,6 +191,20 @@ public class ContentManagerScreen extends Screen{
 
         index = 0;
         for (FileToggle toggle : resourceToggles) {
+            Button resourceToggleFunc = Button.builder(Component.literal(toggle.getButtonText().getString()), button -> {
+                toggle.toggled();
+                button.setMessage(Component.literal(toggle.getButtonText().getString()));
+            }).bounds(0, 0, 60, btnHeight).build();
+            addWidget(resourceToggleFunc);
+            resourceToggleButtons.add(resourceToggleFunc);
+
+            Button resourceResetFunc = Button.builder(Component.literal("Reset"), _ -> {
+                toggle.resetToDefault();
+                resourceToggleFunc.setMessage(Component.literal(toggle.getButtonText().getString()));
+            }).bounds(0, 0, 50, btnHeight).build();
+            addWidget(resourceResetFunc);
+            resourceResetButtons.add(resourceResetFunc);
+
             Button resourceMetadataFunc = Button.builder(
                     Component.literal(resourceToggles.get(index).getFile().getName()), _ -> {}
             ).bounds(0, 0, 0, btnHeight).build();
@@ -174,17 +212,25 @@ public class ContentManagerScreen extends Screen{
             addWidget(resourceMetadataFunc);
             resourceMetadataButtons.add(resourceMetadataFunc);
 
-            Button resourceToggleFunc = Button.builder(Component.literal(toggle.getButtonText().getString()), button -> {
-                toggle.toggled();
-                button.setMessage(Component.literal(toggle.getButtonText().getString()));
-            }).bounds(0, 0, 60, btnHeight).build();
-            addWidget(resourceToggleFunc);
-            resourceToggleButtons.add(resourceToggleFunc);
             index++;
         }
 
         index = 0;
         for (FileToggle toggle : shaderToggles) {
+            Button shaderToggleFunc = Button.builder(Component.literal(toggle.getButtonText().getString()), button -> {
+                toggle.toggled();
+                button.setMessage(Component.literal(toggle.getButtonText().getString()));
+            }).bounds(0, 0, 60, btnHeight).build();
+            addWidget(shaderToggleFunc);
+            shaderToggleButtons.add(shaderToggleFunc);
+
+            Button shaderResetFunc = Button.builder(Component.literal("Reset"), _ -> {
+                toggle.resetToDefault();
+                shaderToggleFunc.setMessage(Component.literal(toggle.getButtonText().getString()));
+            }).bounds(0, 0, 50, btnHeight).build();
+            addWidget(shaderResetFunc);
+            shaderResetButtons.add(shaderResetFunc);
+
             Button shaderMetadataFunc = Button.builder(
                     Component.literal(shaderToggles.get(index).getFile().getName()), _ -> {}
             ).bounds(0, 0, 0, btnHeight).build();
@@ -192,12 +238,6 @@ public class ContentManagerScreen extends Screen{
             addWidget(shaderMetadataFunc);
             shaderMetadataButtons.add(shaderMetadataFunc);
 
-            Button shaderToggleFunc = Button.builder(Component.literal(toggle.getButtonText().getString()), button -> {
-                toggle.toggled();
-                button.setMessage(Component.literal(toggle.getButtonText().getString()));
-            }).bounds(0, 0, 60, btnHeight).build();
-            addWidget(shaderToggleFunc);
-            shaderToggleButtons.add(shaderToggleFunc);
             index++;
         }
 
@@ -206,17 +246,66 @@ public class ContentManagerScreen extends Screen{
             for (FileToggle toggle : resourceToggles) toggle.applyChange("resourcepack"); //FileUtils.toggleResourcePack(toggle.getFile().getName(), toggle.isEnabled());
             for (FileToggle toggle : shaderToggles) toggle.applyChange("shaderpack"); //FileUtils.toggleShaderPack(toggle.getFile().getName(), toggle.isEnabled());
 
-            client.setScreen(null);
+            FileToggle.saveLockedStates(modToggles, resourceToggles, shaderToggles);
+            client.gui.setScreen(null);
             Minecraft.getInstance().reloadResourcePacks();
         }).bounds(0, 0, 120, btnHeight).build();
         headerButtons.add(applyFunc);
         addWidget(applyFunc);
         tooltipMap.put(applyFunc, "Restart the game to fully apply changes to mod settings.");
 
-        Button cancelFunc = Button.builder(Component.literal("Cancel"), _ -> client.setScreen(null))
+        Button cancelFunc = Button.builder(Component.literal("Cancel"), _ -> client.gui.setScreen(null))
                 .bounds(0, 0, 120, btnHeight).build();
         headerButtons.add(cancelFunc);
         addWidget(cancelFunc);
+
+        Button whitelistFunc = Button.builder(Component.literal("Enable Whitelist"), _ -> {
+            for (FileToggle toggle : modToggles) toggle.applyChange("mod");
+            for (FileToggle toggle : resourceToggles) toggle.applyChange("resourcepack");
+            for (FileToggle toggle : shaderToggles) toggle.applyChange("shaderpack");
+
+            List<FileToggle> whitelistRaw = FileUtils.getModToggles("enabled");
+
+            for (FileToggle toggle : whitelistRaw){ whitelist.add(toggle.getModId()); }
+            whitelist_enabled = "true";
+
+            FileToggle.updateConfigWhitelist();
+
+            FileToggle.saveLockedStates(modToggles, resourceToggles, shaderToggles);
+            client.gui.setScreen(null);
+            Minecraft.getInstance().reloadResourcePacks();
+        }).bounds(0, 0, 120, btnHeight).build();
+
+        if (whitelist_enabled.equals("init") && SimpleModManager.configWhitelist){
+            headerButtons.add(whitelistFunc);
+            addWidget(whitelistFunc);
+        }
+
+        Button disableWhitelistFunc = Button.builder(Component.literal("Disable Whitelist"), _ -> {
+            whitelist_enabled = "false";
+            whitelist.clear();
+
+            FileToggle.updateConfigWhitelist();
+            client.gui.setScreen(null);
+        }).bounds(0, 0, 120, btnHeight).build();
+
+        if (whitelist_enabled.equals("init") && SimpleModManager.configWhitelist){
+            headerButtons.add(disableWhitelistFunc);
+            addWidget(disableWhitelistFunc);
+        }
+
+        Button configWhitelistModeFunc = Button.builder(
+                Component.literal(SimpleModManager.configWhitelist ? "Exit Config Mode" : "Config Whitelist"),
+                _ -> {
+                    SimpleModManager.configWhitelist = !SimpleModManager.configWhitelist;
+                    this.init();
+                }
+        ).bounds(0, 0, 120, btnHeight).build();
+
+        if (whitelist_enabled.equals("init")) {
+            headerButtons.add(configWhitelistModeFunc);
+            addWidget(configWhitelistModeFunc);
+        }
 
         updateScroll();
     }
@@ -230,7 +319,7 @@ public class ContentManagerScreen extends Screen{
 
         updateVisibleButtonsBasedOnSearch();
 
-        // Tooltip handling
+        //tooltip handling
         for (Map.Entry<Button, String> entry : tooltipMap.entrySet()) {
             Button button = entry.getKey();
             if (button.isHovered() && button.visible) {
@@ -245,9 +334,6 @@ public class ContentManagerScreen extends Screen{
 
         int listTop = 70;
         int listBottom = this.height - 40;
-
-
-
         int y = listTop + 16 - (int) scrollAmount;
         int padding = 20;
         int nameW = this.width - 260;
@@ -257,29 +343,26 @@ public class ContentManagerScreen extends Screen{
         //button container fills first so buttons are on top
         context.fill(10, listTop, this.width - 10, listBottom, 0x88111111);
 
-
-        y += 12; // below column headers
+        y += 12;
 
         switch (activeTab) {
             case "mods" -> {
                 for (int i = 0; i < modToggles.size(); i++) {
                     FileToggle toggle = modToggles.get(i);
 
-                    // always increment y and skip if filtered
-                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) {
-                        y += 25;
-                        continue;
-                    }
+                    // skip if filtered - DO NOT INCREMENT Y
+                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) { continue; }
 
-                    // skip rendering if out of bounds but still increment y
+                    // skip rendering if out of bounds - ALWAYS INCREMENT Y
                     if (y + btnHeight < listTop + 20 || y > listBottom - 20) {
-                        modToggleButtons.get(i).setX(Integer.MIN_VALUE);
-                        modToggleButtons.get(i).setY(Integer.MIN_VALUE);
-                        modResetButtons.get(i).setX(Integer.MIN_VALUE);
-                        modResetButtons.get(i).setY(Integer.MIN_VALUE);
-                        modMetadataButtons.get(i).setX(Integer.MIN_VALUE);
-                        modMetadataButtons.get(i).setY(Integer.MIN_VALUE);
-                        y += 25;
+                        this.modToggleButtons.get(i).setX(Integer.MIN_VALUE);
+                        this.modToggleButtons.get(i).setY(Integer.MIN_VALUE);
+                        this.modResetButtons.get(i).setX(Integer.MIN_VALUE);
+                        this.modResetButtons.get(i).setY(Integer.MIN_VALUE);
+                        this.modMetadataButtons.get(i).setX(Integer.MIN_VALUE);
+                        this.modMetadataButtons.get(i).setY(Integer.MIN_VALUE);
+
+                        y+=25;
                         continue;
                     }
 
@@ -308,20 +391,19 @@ public class ContentManagerScreen extends Screen{
                 for (int i = 0; i < resourceToggles.size(); i++) {
                     FileToggle toggle = resourceToggles.get(i);
 
-                    // always increment y and skip if filtered
-                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) {
-                        y += 25;
-                        continue;
-                    }
+                    // skip if filtered - DO NOT INCREMENT Y
+                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) { continue; }
 
-                    // skip rendering if out of bounds but still increment y
+                    // skip rendering if out of bounds - ALWAYS INCREMENT Y
                     if (y + btnHeight < listTop + 20 || y > listBottom - 20) {
                         this.resourceToggleButtons.get(i).setX(Integer.MIN_VALUE);
                         this.resourceToggleButtons.get(i).setY(Integer.MIN_VALUE);
+                        this.resourceResetButtons.get(i).setX(Integer.MIN_VALUE);
+                        this.resourceResetButtons.get(i).setY(Integer.MIN_VALUE);
                         this.resourceMetadataButtons.get(i).setX(Integer.MIN_VALUE);
                         this.resourceMetadataButtons.get(i).setY(Integer.MIN_VALUE);
 
-                        y += 25;
+                        y+=25;
                         continue;
                     }
 
@@ -338,6 +420,11 @@ public class ContentManagerScreen extends Screen{
                     toggleBtn.setY(y);
                     toggleBtn.extractRenderState(context, mouseX, mouseY, delta);
 
+                    Button resetBtn = resourceResetButtons.get(i);
+                    resetBtn.setX(resetX);
+                    resetBtn.setY(y);
+                    resetBtn.extractRenderState(context, mouseX, mouseY, delta);
+
                     y += 25;
                 }
             }
@@ -345,19 +432,19 @@ public class ContentManagerScreen extends Screen{
                 for (int i = 0; i < shaderToggles.size(); i++) {
                     FileToggle toggle = shaderToggles.get(i);
 
-                    // always increment y and skip if filtered
-                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) {
-                        y += 25;
-                        continue;
-                    }
+                    // skip if filtered - DO NOT INCREMENT Y
+                    if (!toggle.getDisplayName().toLowerCase().contains(searchQuery)) { continue; }
 
-                    // skip rendering if out of bounds but still increment y
+                    // skip rendering if out of bounds - ALWAYS INCREMENT Y
                     if (y + btnHeight < listTop + 20 || y > listBottom - 20) {
                         this.shaderToggleButtons.get(i).setX(Integer.MIN_VALUE);
                         this.shaderToggleButtons.get(i).setY(Integer.MIN_VALUE);
+                        this.shaderResetButtons.get(i).setX(Integer.MIN_VALUE);
+                        this.shaderResetButtons.get(i).setY(Integer.MIN_VALUE);
                         this.shaderMetadataButtons.get(i).setX(Integer.MIN_VALUE);
                         this.shaderMetadataButtons.get(i).setY(Integer.MIN_VALUE);
-                        y += 25;
+
+                        y+=25;
                         continue;
                     }
 
@@ -374,28 +461,32 @@ public class ContentManagerScreen extends Screen{
                     toggleBtn.setY(y);
                     toggleBtn.extractRenderState(context, mouseX, mouseY, delta);
 
+                    Button resetBtn = shaderResetButtons.get(i);
+                    resetBtn.setX(resetX);
+                    resetBtn.setY(y);
+                    resetBtn.extractRenderState(context, mouseX, mouseY, delta);
+
                     y += 25;
                 }
             }
         }
 
-        // Bottom bar
         int bottomY = this.height - 26;
         context.fill(0, bottomY - 4, this.width, this.height, 0x88111111);
         context.fill(0, bottomY - 5, this.width, bottomY - 4, 0xFF505050);
 
-        int totalBtnWidth = 120 + 4 + 120;
-        int startX = (this.width - totalBtnWidth) / 2;
+        int btnWidth = 120;
+        int btnSpacing = 4;
 
-        Button applyBtn = headerButtons.getFirst();
-        applyBtn.setX(startX);
-        applyBtn.setY(bottomY);
-        applyBtn.extractRenderState(context, mouseX, mouseY, delta);
-
-        Button cancelBtn = headerButtons.get(1);
-        cancelBtn.setX(startX + 124);
-        cancelBtn.setY(bottomY);
-        cancelBtn.extractRenderState(context, mouseX, mouseY, delta);
+        //position each button by index, all centered together
+        for (int i = 0; i < headerButtons.size(); i++) {
+            int totalBtnWidth = (headerButtons.size() * btnWidth) + ((headerButtons.size() - 1) * btnSpacing);
+            int startX = (this.width - totalBtnWidth) / 2;
+            Button btn = headerButtons.get(i);
+            btn.setX(startX + i * (btnWidth + btnSpacing));
+            btn.setY(bottomY);
+            btn.extractRenderState(context, mouseX, mouseY, delta);
+        }
 
         this.searchBox.extractRenderState(context, mouseX, mouseY, delta);
 
@@ -404,6 +495,7 @@ public class ContentManagerScreen extends Screen{
         context.fill(10, listBottom - 1, this.width - 10, listBottom, 0xFF505050);
         context.fill(10, listTop, 11, listBottom, 0xFF505050);
         context.fill(this.width - 11, listTop, this.width - 10, listBottom, 0xFF505050);
+
 
         super.extractRenderState(context, mouseX, mouseY, delta);
     }
@@ -437,12 +529,15 @@ public class ContentManagerScreen extends Screen{
         for (int i = 0; i < resourceToggles.size(); i++) {
             boolean show = activeTab.equals("resourcepacks") && resourceToggles.get(i).getDisplayName().toLowerCase().contains(searchQuery);
             resourceToggleButtons.get(i).visible = show;
+            resourceResetButtons.get(i).visible = show;
             resourceMetadataButtons.get(i).visible = show;
         }
         for (int i = 0; i < shaderToggles.size(); i++) {
             boolean show = activeTab.equals("shaderpacks") && shaderToggles.get(i).getDisplayName().toLowerCase().contains(searchQuery);
             shaderToggleButtons.get(i).visible = show;
+            shaderResetButtons.get(i).visible = show;
             shaderMetadataButtons.get(i).visible = show;
         }
     }
+
 }

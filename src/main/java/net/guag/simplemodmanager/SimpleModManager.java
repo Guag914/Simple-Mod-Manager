@@ -8,17 +8,19 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.api.ModInitializer;
 
 import net.guag.simplemodmanager.screen.ContentManagerScreen;
+import net.guag.simplemodmanager.screen.InstallerScreen;
 import net.guag.simplemodmanager.util.FileUtils;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 //test seed: -781932279150905825
 
 public class SimpleModManager implements ModInitializer, ClientModInitializer {
 	private static KeyMapping openUIBinding;
+	private static KeyMapping testAPIPipeline;
+	public static boolean configWhitelist = false;
 
 	@Override
 	public void onInitialize() {
@@ -29,22 +31,38 @@ public class SimpleModManager implements ModInitializer, ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 
-		// Register a keybind (F8) to open the mod manager GUI.
+		//register mapping
+		KeyMapping.Category keybinds = KeyMapping.Category.register(
+				Identifier.bySeparator("simplemodmanager:keybinds", ':')
+		);
+
+		//register f8 to open mod gui
 		openUIBinding = KeyMappingHelper.registerKeyMapping(new KeyMapping(
 				"key.SimpleModManager.openui",
-				InputConstants.Type.KEYSYM,
-				GLFW.GLFW_KEY_F8,
-				KeyMapping.Category.register(Identifier.bySeparator("simplemodmanager:keybinds", ':'))
+				InputConstants.Type.KEYBOARD,
+				InputConstants.KEY_F8,
+				keybinds
 		));
 
-		// On each client tick, if F8 is pressed and no screen is open, open the GUI.
+		testAPIPipeline = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+				"key.SimpleModManager.testAPI",
+				InputConstants.Type.KEYBOARD,
+				InputConstants.KEY_F9,
+				keybinds
+		));
+
+		//check for key presses on each client tick
 		ClientTickEvents.END_CLIENT_TICK.register(_ -> {
 			while (openUIBinding.consumeClick()) {
 				Minecraft mc = Minecraft.getInstance();
-				if (mc.screen == null) {
-					// Pass the client and the hardcoded mod toggles (loaded from file folders)
-					mc.setScreen(new ContentManagerScreen(mc, FileUtils.getModToggles(), FileUtils.getResourceToggles(), FileUtils.getShaderToggles()));
+				if (mc.gui.screen() == null) {
+					mc.gui.setScreen(new ContentManagerScreen(mc, FileUtils.getModToggles("all"), FileUtils.getResourceToggles(), FileUtils.getShaderToggles()));
 				}
+			}
+
+			while (testAPIPipeline.consumeClick()) {
+				Minecraft mc = Minecraft.getInstance();
+				if (mc.gui.screen() == null) mc.gui.setScreen(new InstallerScreen(mc));
 			}
 		});
 	}

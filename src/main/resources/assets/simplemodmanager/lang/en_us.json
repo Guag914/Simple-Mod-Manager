@@ -1,4 +1,5 @@
 {
   "key.SimpleModManager.openui": "Open Mod UI",
-  "key.category.simplemodmanager.keybinds": "Simple Mod Manager"
+  "key.category.simplemodmanager.keybinds": "Simple Mod Manager",
+  "key.SimpleModManager.testAPI": "Open Installer GUI"
 }

@@ -160,22 +160,32 @@ public class FileUtils {
 
 
     // Scan the active and disabled mods folders and return a list of ModToggle objects.
-    public static List<FileToggle> getModToggles() {
-        List<FileToggle> toggles = new ArrayList<>();
-        File[] enabled = MODS_FOLDER.listFiles((_, name) -> name.endsWith(".jar"));
-        File[] disabled = DISABLED_MODS_FOLDER.listFiles((_, name) -> name.endsWith(".jar"));
+    public static List<FileToggle> getModToggles(String amount) {
+        List<FileToggle> enabled = new ArrayList<>();
+        List<FileToggle> disabled = new ArrayList<>();
 
-        if (enabled != null) {
-            for (File f : enabled) {
-                toggles.add(new FileToggle(f, true));
+        File[] enabledLST = MODS_FOLDER.listFiles((_, name) -> name.endsWith(".jar"));
+        File[] disabledLST = DISABLED_MODS_FOLDER.listFiles((_, name) -> name.endsWith(".jar"));
+
+        if (enabledLST != null) {
+            for (File f : enabledLST) {
+                enabled.add(new FileToggle(f, ToggleState.ENABLED));
             }
         }
-        if (disabled != null) {
-            for (File f : disabled) {
-                toggles.add(new FileToggle(f, false));
+        if (disabledLST != null) {
+            for (File f : disabledLST) {
+                disabled.add(new FileToggle(f, ToggleState.DISABLED));
             }
         }
-        return toggles;
+
+        List<FileToggle> toggles = new ArrayList<>(enabled);
+        toggles.addAll(disabled);
+
+        return switch (amount) {
+            case "enabled" -> enabled;
+            case "disabled" -> disabled;
+            default -> toggles;
+        };
     }
 
     public static List<FileToggle> getResourceToggles() {
@@ -185,12 +195,12 @@ public class FileUtils {
 
         if (enabled != null) {
             for (File f : enabled) {
-                ResourceToggles.add(new FileToggle(f, true));
+                ResourceToggles.add(new FileToggle(f, ToggleState.ENABLED));
             }
         }
         if (disabled != null) {
             for (File f : disabled) {
-                ResourceToggles.add(new FileToggle(f, false));
+                ResourceToggles.add(new FileToggle(f, ToggleState.DISABLED));
             }
         }
         return ResourceToggles;
@@ -204,12 +214,12 @@ public class FileUtils {
 
         if (enabled != null) {
             for (File f : enabled) {
-                shaderToggles.add(new FileToggle(f, true));
+                shaderToggles.add(new FileToggle(f, ToggleState.ENABLED));
             }
         }
         if (disabled != null) {
             for (File f : disabled) {
-                shaderToggles.add(new FileToggle(f, false));
+                shaderToggles.add(new FileToggle(f, ToggleState.DISABLED));
             }
         }
         return shaderToggles;

@@ -22,9 +22,9 @@ public abstract class PauseWidget extends Screen {
 
     @Unique
     CustomMenuWidget iconWidget = new CustomMenuWidget(0, 0, 20, 20, Component.literal(""), _ ->
-            Minecraft.getInstance().setScreen(
+            Minecraft.getInstance().gui.setScreen(
                     new ContentManagerScreen(Minecraft.getInstance(),
-                            FileUtils.getModToggles(),
+                            FileUtils.getModToggles("all"),
                             FileUtils.getResourceToggles(),
                             FileUtils.getShaderToggles()
                     )
